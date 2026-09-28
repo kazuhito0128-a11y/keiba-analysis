@@ -1,0 +1,11 @@
+{
+  "name": "競馬分析・答え合わせ 無料版",
+  "short_name": "競馬分析",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f5f7",
+  "theme_color": "#17202a",
+  "lang": "ja",
+  "description": "出馬表から予想し、レース後に答え合わせできる無料の競馬分析PWA"
+}
