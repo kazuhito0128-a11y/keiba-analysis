@@ -1,1 +1,10 @@
-{"name":"競馬分析 v5","short_name":"競馬分析","start_url":"./","display":"standalone","background_color":"#f3f5f7","theme_color":"#17202a","lang":"ja"}
+{
+  "name": "競馬分析 v2.1",
+  "short_name": "競馬分析",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f5f7",
+  "theme_color": "#17202a",
+  "lang": "ja"
+}
