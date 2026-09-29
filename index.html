@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#17202a">
 <link rel="manifest" href="manifest.json">
-<title>競馬分析 v4</title>
+<title>競馬分析 v5</title>
 <style>
 body{margin:0;background:#f3f5f7;color:#17202a;font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
 header{background:#17202a;color:#fff;padding:14px;position:sticky;top:0;z-index:5}
@@ -27,7 +27,7 @@ a.jra{display:block;text-align:center;background:#1769e0;color:#fff;text-decorat
 </style>
 </head>
 <body>
-<header><h1>🐴 競馬分析 v4</h1><div class="sub">JRA公式ページ連携・条件変化チェック・予想→答え合わせ</div></header>
+<header><h1>🐴 競馬分析 v5</h1><div class="sub">JRA公式ページ連携・出馬表入口・条件変化チェック・予想→答え合わせ</div></header>
 <main>
 <section class="card">
 <h2>① レース指定</h2>
@@ -38,10 +38,11 @@ a.jra{display:block;text-align:center;background:#1769e0;color:#fff;text-decorat
 <div><label>距離(m)</label><input id="distance" type="number" value="1200"></div>
 </div>
 <div class="row">
-<button onclick="openJraProgram()">📅 JRA開催日程</button>
-<button onclick="openJraEntry()">📋 JRA出馬表</button>
+<button onclick="openJraHome()">🏇 JRA公式</button>
+<button onclick="openJraPdf()">📋 公式出馬表</button>
+<button class="secondary" onclick="openJraProgram()">📅 開催日程</button>
 </div>
-<div class="notice">選択した日付のJRA開催日程を開くボタンと、JRA公式の出馬表入口を用意しています。JRA側の固有URLは開催日・開催回で変わるため、アプリ側で無理にURLを推測しません。</div>
+<div class="notice"><b>v5の変更点：</b>JRAの出馬表URLをアプリ側で推測してエラー013になる方式を廃止しました。代わりに、確実に開けるJRA公式トップと「開催場別出馬表」ページをワンタップで開きます。公式出馬表ページから対象日・競馬場を選んでください。</div>
 <div id="status" class="status">準備完了</div>
 </section>
 
@@ -77,13 +78,17 @@ function programUrl(){
  const [y,m,day]=d.split("-");
  return `https://www.jra.go.jp/keiba/calendar${y}/${y}/${Number(m)}/${m}${day}.html`;
 }
+function openJraHome(){
+ window.open("https://www.jra.go.jp/","_blank");
+ $("status").textContent="JRA公式トップを開きました。上部メニューの「出馬表」から対象日・競馬場・Rを選択してください。";
+}
+function openJraPdf(){
+ window.open("https://own.jra.jp/keiba/rpdf/index.html","_blank");
+ $("status").textContent="JRA公式の開催場別出馬表を開きました。対象日・競馬場のPDFを選択してください。";
+}
 function openJraProgram(){
  const u=programUrl(); window.open(u,"_blank");
  $("status").textContent="JRA公式の開催日程を開きました。該当日の競馬場・レースを確認してください。";
-}
-function openJraEntry(){
- window.open("https://www.jra.go.jp/JRADB/accessD.html","_blank");
- $("status").textContent="JRA公式の出馬表入口を開きました。開催日・競馬場・Rを選択してください。";
 }
 function sample(){
  $("source").value=`1 サンプル逃げ 55.0 7.2 470kg(+2) ブリンカー
