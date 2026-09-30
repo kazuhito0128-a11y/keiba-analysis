@@ -1,12 +1,12 @@
 <!doctype html><html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#17202a"><link rel="manifest" href="manifest.json">
-<title>競馬分析 v2.10</title>
+<title>競馬分析 v2.11</title>
 <style>
 body{margin:0;background:#f3f5f7;color:#17202a;font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}header{background:#17202a;color:#fff;padding:14px;position:sticky;top:0;z-index:5}h1{font-size:18px;margin:0}.sub{font-size:10px;opacity:.75}main{max-width:1050px;margin:auto;padding:10px}.card{background:#fff;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 2px 9px #0001}h2{font-size:15px;margin:0 0 10px}.notice,.status{font-size:10px;line-height:1.6;background:#f8fafc;padding:9px;border-radius:9px}textarea,input,select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #d0d5dd;border-radius:9px;margin-top:5px;font:inherit}textarea{min-height:180px;font-size:11px}.row{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}button{border:0;border-radius:10px;padding:11px 12px;background:#1769e0;color:#fff;font-weight:700;flex:1;min-width:120px}.secondary{background:#475467}.hidden{display:none}.good{color:#087443;font-weight:700}.warn{color:#b54708;font-weight:700}.bad{color:#b42318;font-weight:700}table{width:100%;border-collapse:collapse;font-size:10px}th,td{padding:6px;border-bottom:1px solid #eee;text-align:left}.rank{display:grid;grid-template-columns:38px 1fr;gap:8px;padding:10px 0;border-bottom:1px solid #eee}.num{font-size:20px;font-weight:900}.horse{font-weight:800;font-size:13px}.tag{font-size:9px;background:#eef2ff;border-radius:99px;padding:4px 6px;display:inline-block;margin:2px}.hot{background:#fff1f0}.muted{font-size:10px;color:#667085;line-height:1.5}.comment{border-left:3px solid #1769e0;background:#f8fafc;padding:8px;margin:6px 0;font-size:11px;line-height:1.5}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media(max-width:650px){.grid{grid-template-columns:1fr}}
 </style></head><body>
-<header><h1>🐴 競馬分析 v2.10</h1><div class="sub">JRA＋netkeibaを自動判定／貼り付け対応・キャッシュ更新版</div></header><main>
+<header><h1>🐴 競馬分析 v2.11</h1><div class="sub">JRA＋netkeiba自動判定／調教・展開・条件変化を統合分析</div></header><main>
 <section class="card"><h2>① レース指定</h2><div class="grid">
 <div><label>日付</label><input id="date" type="date"></div><div><label>競馬場</label><select id="track"><option>中山</option><option>東京</option><option>阪神</option><option>京都</option><option>福島</option><option>新潟</option><option>中京</option><option>札幌</option><option>函館</option><option>小倉</option></select></div>
 <div><label>R</label><select id="race"></select></div><div><label>距離(m)</label><input id="distance" type="number" value="1200"></div></div></section>
@@ -22,9 +22,9 @@ body{margin:0;background:#f3f5f7;color:#17202a;font-family:system-ui,-apple-syst
 
 <section id="preview" class="card hidden"><h2>④ 抽出結果を確認</h2><div id="summary" class="status"></div><div id="table"></div><div class="row"><button onclick="runAnalysis()">🏆 分析開始</button></div></section>
 
-<section id="analysis" class="hidden"><section class="card"><h2>🏆 おすすめ順</h2><div id="ranking"></div></section>
+<section id="analysis" class="hidden"><section class="card"><h2>🏆 総合分析・おすすめ順</h2><div id="analysisNote" class="notice"></div><div id="ranking"></div></section><section class="card"><h2>📊 分析材料の取得状況</h2><div id="dataQuality"></div></section>
 <section class="card"><h2>🔥 条件変化チェック</h2><div id="changes"></div></section><section class="card"><h2>⏱ 1000m予想</h2><div id="time"></div><div class="muted">※現段階は距離・過去走を利用した暫定値です。</div></section>
-<section class="card"><h2>🏇 展開予想</h2><div id="flow"></div></section><section class="card"><h2>💬 馬体・厩舎・騎手</h2><div id="comments"></div></section>
+<section class="card"><h2>🏇 展開予想</h2><div id="flow"></div></section><section class="card"><h2>🏋️ 調教・AI・厩舎情報</h2><div id="comments"></div></section>
 <section class="card"><h2>🏁 答え合わせ</h2>
 <div class="notice"><strong>結果も「URL取得」または「丸ごと貼り付け」に対応。</strong><br>JRA/JBIS等の公開結果ページURLを入れて取得するか、今まで通りJRA結果表をそのまま貼り付けてください。</div>
 <input id="resultUrl" type="url" placeholder="結果ページURL（JRA / JBIS / その他の公開ページ）"><div class="row"><button onclick="fetchResultUrl()">🌐 結果URLから取得</button><button class="secondary" onclick="openResultUrl()">↗ ページを開く</button></div>
@@ -331,10 +331,56 @@ function parseJRA(){
   out.sort((a,b)=>a.no-b.no);
   const seen=new Set();
   horses=out.filter(h=>!seen.has(h.no)&&seen.add(h.no));
+  enrichHorses(raw);
   if(!horses.length){$("status").innerHTML='<span class="bad">抽出できませんでした。</span>';return}
   renderPreview();
 }
 
+
+function parseExtraNetkeiba(raw){
+  const text=raw.replace(/\r/g,"");
+  const map=new Map();
+  // Training blocks in the pasted netkeiba Markdown.
+  const trRe=/\*\s+(\d{1,2})\s+([^\n]+)\n\s*\[前走\][^\n]*\n\s*([^\n]+)\n\s*([^\n]*)/g;
+  let m;
+  while((m=trRe.exec(text))){
+    const no=+m[1], line=(m[3]||"").trim(), extra=(m[4]||"").trim();
+    const grade=(line.match(/\b([ABC])\s*$/)||[])[1]||null;
+    const date=(line.match(/(\d{2}\/\d{2})/)||[])[1]||null;
+    const course=(line.match(/\s(美坂|美Ｗ|美W|栗坂|栗Ｗ|栗W|CW|坂路|南W|南Ｗ|障害)\s/)||[])[1]||null;
+    const timeParts=(line.match(/\s(\d{1,2}(?:\.\d+)?)\s+(\d{1,2}(?:\.\d+)?)\s+(\d{1,2}(?:\.\d+)?)\s+(\d{1,2}(?:\.\d+)?)\s+([\d.]+)\s*(?:$|強め|馬也|一杯)/)||[]);
+    map.set(no,{grade,date,course,line,extra,last4f:timeParts[1]?+timeParts[1]:null,last3f:timeParts[2]?+timeParts[2]:null,last2f:timeParts[3]?+timeParts[3]:null,last1f:timeParts[4]?+timeParts[4]:null});
+  }
+  // AI/pace information visible in the fetched text.
+  const pace=(text.match(/\*\s*ペース\s*\n\s*\n?\s*([SMAH]+)\b/)||[])[1]||null;
+  const est=(text.match(/\*\s*推定タイム\s*\n(?:.*\n){0,2}\s*([0-9]+:[0-9.]+)/)||[])[1]||null;
+  const aiView=(text.match(/AIによるこのレースの見解・推奨馬[\s\S]{0,500}?注目は\s*([0-9]{1,2})[.．]/)||[])[1];
+  const top={};
+  const cats=[['能力','能力'],['上昇度','上昇度'],['騎手','騎手'],['距離','距離']];
+  for(const [key,label] of cats){
+    const re=new RegExp('\\|\\s*'+label+'\\s*\\|[\\s\\S]*?\\|\\s*([^\\n]+)\\|');
+    const mm=text.match(re); if(mm){top[key]=[...mm[1].matchAll(/(?:^|\s)(\d{1,2})\s/g)].map(x=>+x[1]);}
+  }
+  // Stable comments, when the source actually includes them.
+  const comments={};
+  const cRe=/\|\s*(\d{1,2})\s*\|\s*(\d{1,2})\s*\|\s*([^|\n]+)\s*\|\s*([\s\S]*?)\|/g;
+  while((m=cRe.exec(text))){
+    const no=+m[2], comment=cleanNetkeiba(m[4]||"").replace(/\s+/g," ").trim();
+    if(comment && !/馬名|コメント|評価|登録/.test(comment)) comments[no]=comment;
+  }
+  return {training:map,pace,est,aiView:aiView?+aiView:null,top,comments};
+}
+function enrichHorses(raw){
+  const ex=parseExtraNetkeiba(raw);
+  for(const h of horses){
+    h.training=ex.training.get(h.no)||null;
+    h.stableComment=ex.comments[h.no]||"";
+    h.aiTags=[];
+    for(const k of Object.keys(ex.top)) if((ex.top[k]||[]).includes(h.no)) h.aiTags.push(k+'上位');
+    if(ex.aiView===h.no) h.aiTags.push('AI見解注目');
+  }
+  window.raceExtra=ex;
+}
 function renderPreview(){
   let a=horses.filter(h=>!h.cancel),c=horses.filter(h=>h.cancel);
   let bad=a.filter(h=>!h.jockey||h.odds===null||h.body===null||h.wt===null).length;
@@ -343,18 +389,43 @@ function renderPreview(){
   $("table").innerHTML="<table><tr><th>番</th><th>馬名</th><th>オッズ</th><th>馬体重</th><th>斤量</th><th>騎手</th><th>厩舎</th><th>条件変化</th></tr>"+
     horses.map(h=>`<tr><td>${h.no}</td><td>${h.name}</td><td>${h.cancel?"取消":h.odds??"—"}</td><td>${h.body?`${h.body}kg ${h.diff>=0?"+":""}${h.diff}`:"—"}</td><td>${h.wt??"—"}kg</td><td>${h.jockey||"—"}</td><td>${h.trainer||"—"}</td><td>${h.tags.map(x=>"🔥"+x).join(" ")||"—"}</td></tr>`).join("")+"</table>";
   $("preview").classList.remove("hidden");
-  $("status").innerHTML='<span class="good">自動抽出しました。</span> オッズ・馬体重・斤量・騎手・厩舎を確認してください。';
+  $("status").innerHTML='<span class="good">自動抽出しました。</span> オッズ・馬体重・斤量・騎手を確認。厩舎・血統・調教は取得できた範囲だけ分析します。';
 }
 function runAnalysis(){
   let a=horses.filter(h=>!h.cancel);
-  a.forEach(h=>{let s=h.odds?Math.max(1,20-Math.log(h.odds+1)*4):5;if(Math.abs(h.diff)>=8)s+=3;s+=h.tags.length*4;h.score=s});
+  const oddsList=a.filter(h=>Number.isFinite(h.odds)).map(h=>h.odds), minOdds=Math.min(...oddsList), maxOdds=Math.max(...oddsList);
+  const norm=(v,lo,hi)=>hi===lo?50:100*(hi-v)/(hi-lo);
+  a.forEach(h=>{
+    let score=0, reasons=[], missing=[];
+    // 1) market baseline: useful as a reference, not the whole prediction.
+    if(Number.isFinite(h.odds)){const os=norm(h.odds,minOdds,maxOdds);score+=os*0.35;}
+    else missing.push('オッズ');
+    // 2) weight change: modest adjustment only; avoid assuming +kg is always good.
+    if(Number.isFinite(h.diff)){let w=Math.max(-2,Math.min(2,h.diff/5));score+=50+w*5; if(Math.abs(h.diff)>=8) reasons.push('馬体重変化大');}
+    else missing.push('馬体重増減');
+    // 3) training grade when present in fetched page.
+    if(h.training?.grade){const g={A:100,B:78,C:52}[h.training.grade]||60;score+=g*0.25;reasons.push('調教'+h.training.grade);}
+    else missing.push('調教');
+    // 4) netkeiba visible AI/data upper groups.
+    if(h.aiTags?.length){score+=Math.min(12,h.aiTags.length*4);reasons.push(...h.aiTags);}
+    else missing.push('能力/上昇度等');
+    // 5) jockey/trainer/bloodline are only scored if actual data is present.
+    if(h.jockey) score+=3; else missing.push('騎手');
+    if(h.father||h.mother) {score+=5; reasons.push('血統取得済');} else missing.push('血統');
+    if(h.trainer||h.stableComment) {score+=3; reasons.push('厩舎情報');} else missing.push('厩舎情報');
+    h.score=score; h.reasons=reasons; h.missing=missing;
+  });
   predicted=[...a].sort((x,y)=>y.score-x.score);
-  $("ranking").innerHTML=predicted.map((h,i)=>`<div class="rank"><div class="num">${i+1}</div><div><div class="horse">${h.no} ${h.name}</div><span class="tag">指数 ${h.score.toFixed(1)}</span>${h.tags.map(t=>`<span class="tag hot">🔥${t}</span>`).join("")}<div class="muted">オッズ ${h.odds??"—"}｜馬体 ${h.body??"—"}kg (${h.diff>=0?"+":""}${h.diff||0})｜斤量 ${h.wt??"—"}kg｜騎手 ${h.jockey||"—"}</div></div></div>`).join("");
-  $("changes").innerHTML=predicted.filter(h=>h.tags.length).map(h=>`<div class="comment"><b>${h.no} ${h.name}</b>：${h.tags.join("／")}</div>`).join("")||"該当馬なし";
-  $("time").textContent=`${(+$("distance").value||1200)===1200?"57.0～59.0":"距離に応じた暫定レンジ"} 秒前後`;
-  $("flow").innerHTML=["スタート直後","向こう正面","第3コーナー","ゴール前"].map(x=>`<div class="comment"><b>${x}</b>：過去走の位置取り・脚質から推定する欄</div>`).join("");
-  $("comments").innerHTML=predicted.map(h=>`<div class="comment"><b>${h.no} ${h.name}</b><br>馬体重：${h.body??"—"}kg (${h.diff>=0?"+":""}${h.diff||0})<br>厩舎：${h.trainer||"—"}<br>騎手：${h.jockey||"—"}<br>${h.father||""}<br>${h.mother||""}</div>`).join("");
-  $("analysis").classList.remove("hidden");
+  const ex=window.raceExtra||{};
+  const sourceType=detectSource($('sourceUrl').value,$('source').value);
+  $('analysisNote').innerHTML=`<b>総合指数は「取得できた情報だけ」で計算しています。</b><br>市場オッズ35%＋調教25%＋馬体変化・AIデータ等を統合。取得できていない血統・厩舎情報を勝手に推定して加点しません。<br>情報不足の馬は「データ不足」と表示します。${ex.pace?` 展開ページからペース「${ex.pace}」を取得しました。`:''}`;
+  $('ranking').innerHTML=predicted.map((h,i)=>`<div class="rank"><div class="num">${i+1}</div><div><div class="horse">${h.no} ${h.name}</div><span class="tag">総合指数 ${h.score.toFixed(1)}</span>${h.training?.grade?`<span class="tag">調教 ${h.training.grade}</span>`:''}${h.reasons.map(t=>`<span class="tag hot">${t}</span>`).join('')}<div class="muted">オッズ ${h.odds??'—'}｜馬体 ${h.body??'—'}kg (${h.diff>=0?'+':''}${h.diff||0})｜斤量 ${h.wt??'—'}kg｜騎手 ${h.jockey||'—'}</div><div class="muted">${h.missing.length?'不足：'+h.missing.join('・'):'主要項目が揃っています'}</div></div></div>`).join('');
+  $('dataQuality').innerHTML=`<div class="comment"><b>取得元：</b>${sourceType}　<b>頭数：</b>${a.length}<br><b>調教：</b>${a.filter(h=>h.training).length}/${a.length}頭　<b>AI上位情報：</b>${a.filter(h=>h.aiTags?.length).length}/${a.length}頭　<b>血統：</b>${a.filter(h=>h.father||h.mother).length}/${a.length}頭　<b>厩舎：</b>${a.filter(h=>h.trainer||h.stableComment).length}/${a.length}頭<br>${ex.pace?`<b>netkeiba表示ペース：</b>${ex.pace}`:'ペース情報は未取得'}${ex.aiView?`　<b>AI見解注目：</b>${ex.aiView}番`:''}</div>`;
+  $('changes').innerHTML=predicted.filter(h=>h.tags.length||Math.abs(h.diff||0)>=8).map(h=>`<div class="comment"><b>${h.no} ${h.name}</b>：${h.tags.join('／')||'馬体重変化 '+(h.diff>=0?'+':'')+h.diff+'kg'}</div>`).join('')||'大きな条件変化は検出されませんでした';
+  $('time').textContent=ex.est||`${(+$('distance').value||1200)===1200?'57.0～59.0':'距離に応じた暫定レンジ'} 秒前後`;
+  $('flow').innerHTML=`<div class="comment"><b>レース全体</b>：${ex.pace?`取得ページではペース「${ex.pace}」表示。`:'ペース情報未取得。過去走の位置取りデータ追加で精度を上げます。'}</div><div class="comment"><b>今後の強化</b>：過去走→脚質→位置取り→上がり→距離適性を馬ごとに取り込み、展開シミュレーションへ接続します。</div>`;
+  $('comments').innerHTML=predicted.map(h=>`<div class="comment"><b>${h.no} ${h.name}</b><br>${h.training?`調教：${h.training.grade||'—'}　${h.training.line}`:'調教：未取得'}<br>厩舎コメント：${h.stableComment||'このページでは未提供'}<br>騎手：${h.jockey||'—'}<br>血統：${h.father||'未取得'}${h.mother?'／'+h.mother:''}</div>`).join('');
+  $('analysis').classList.remove('hidden');
 }
 function parseResult(){
   const raw=$("result").value.replace(/\r/g,"");
