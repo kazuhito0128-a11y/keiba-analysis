@@ -1,24 +1,24 @@
 <!doctype html><html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#17202a"><link rel="manifest" href="manifest.json">
-<title>競馬分析 v2.6</title>
+<title>競馬分析 v2.8</title>
 <style>
 body{margin:0;background:#f3f5f7;color:#17202a;font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}header{background:#17202a;color:#fff;padding:14px;position:sticky;top:0;z-index:5}h1{font-size:18px;margin:0}.sub{font-size:10px;opacity:.75}main{max-width:1050px;margin:auto;padding:10px}.card{background:#fff;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 2px 9px #0001}h2{font-size:15px;margin:0 0 10px}.notice,.status{font-size:10px;line-height:1.6;background:#f8fafc;padding:9px;border-radius:9px}textarea,input,select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #d0d5dd;border-radius:9px;margin-top:5px;font:inherit}textarea{min-height:180px;font-size:11px}.row{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}button{border:0;border-radius:10px;padding:11px 12px;background:#1769e0;color:#fff;font-weight:700;flex:1;min-width:120px}.secondary{background:#475467}.hidden{display:none}.good{color:#087443;font-weight:700}.warn{color:#b54708;font-weight:700}.bad{color:#b42318;font-weight:700}table{width:100%;border-collapse:collapse;font-size:10px}th,td{padding:6px;border-bottom:1px solid #eee;text-align:left}.rank{display:grid;grid-template-columns:38px 1fr;gap:8px;padding:10px 0;border-bottom:1px solid #eee}.num{font-size:20px;font-weight:900}.horse{font-weight:800;font-size:13px}.tag{font-size:9px;background:#eef2ff;border-radius:99px;padding:4px 6px;display:inline-block;margin:2px}.hot{background:#fff1f0}.muted{font-size:10px;color:#667085;line-height:1.5}.comment{border-left:3px solid #1769e0;background:#f8fafc;padding:8px;margin:6px 0;font-size:11px;line-height:1.5}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media(max-width:650px){.grid{grid-template-columns:1fr}}
 </style></head><body>
-<header><h1>🐴 競馬分析 v2.7</h1><div class="sub">貼り付け＋公開ページURL取得に対応</div></header><main>
+<header><h1>🐴 競馬分析 v2.8</h1><div class="sub">JRA＋netkeibaを自動判定／貼り付け対応</div></header><main>
 <section class="card"><h2>① レース指定</h2><div class="grid">
 <div><label>日付</label><input id="date" type="date"></div><div><label>競馬場</label><select id="track"><option>中山</option><option>東京</option><option>阪神</option><option>京都</option><option>福島</option><option>新潟</option><option>中京</option><option>札幌</option><option>函館</option><option>小倉</option></select></div>
 <div><label>R</label><select id="race"></select></div><div><label>距離(m)</label><input id="distance" type="number" value="1200"></div></div></section>
 
 <section class="card"><h2>② データ取得方法</h2>
 <div class="notice"><strong>貼り付け方式は従来どおり使えます。</strong><br>新しく、公開されているJRA/JBIS/その他のレースページURLから本文を取得して、自動抽出できるようにしました。取得には公開ページ用の読み取り中継を使います。サイト側の制限・規約・仕様変更によって取得できない場合は、貼り付け方式へ切り替えてください。</div>
-<input id="sourceUrl" type="url" placeholder="例：https://www.jra.go.jp/... または https://www.jbis.or.jp/..."><div class="row"><button onclick="fetchSourceUrl()">🌐 URLから取得</button><button class="secondary" onclick="openSourceUrl()">↗ ページを開く</button></div><div id="fetchStatus" class="status">URL取得待ち</div></section>
+<select id="sourceType"><option value="auto">自動判定（JRA / netkeiba）</option><option value="jra">JRA</option><option value="netkeiba">netkeiba</option></select><input id="sourceUrl" type="url" placeholder="JRA または netkeiba の出馬表URL"><div class="row"><button onclick="fetchSourceUrl()">🌐 URLから取得</button><button class="secondary" onclick="openSourceUrl()">↗ ページを開く</button></div><div id="fetchStatus" class="status">URL取得待ち</div><div id="sourceDetected" class="status muted">取得後にサイト形式を自動判定します。</div></section>
 
 <section class="card"><h2>③ JRA出馬表をそのまま貼り付け</h2>
 <div class="notice"><strong>URLではなく、JRA出馬表の文字をそのまま貼り付けます。<br><b>騎手は斤量の直後、取消は馬番の欠番から自動判定します。</b></strong><br>[馬名](URL)、**オッズ**、▲△、取消などが混ざっていてもOKです。</div>
 <textarea id="source" placeholder="JRA出馬表をここに貼り付け"></textarea>
-<div class="row"><button onclick="parseJRA()">🔎 自動抽出</button><button class="secondary" onclick="sample()">🧪 サンプル</button><button class="secondary" onclick="clearAll()">🗑 クリア</button></div><div id="status" class="status">待機中</div></section>
+<div class="row"><button onclick="parseSource()">🔎 自動抽出</button><button class="secondary" onclick="sample()">🧪 サンプル</button><button class="secondary" onclick="clearAll()">🗑 クリア</button></div><div id="status" class="status">待機中</div></section>
 
 <section id="preview" class="card hidden"><h2>④ 抽出結果を確認</h2><div id="summary" class="status"></div><div id="table"></div><div class="row"><button onclick="runAnalysis()">🏆 分析開始</button></div></section>
 
@@ -86,7 +86,7 @@ async function fetchSourceUrl(){
     const text=await fetchViaReader(url);
     $("source").value=text;
     $("fetchStatus").innerHTML='<span class="good">取得しました。</span> 下の「自動抽出」を押してください。';
-    parseJRA();
+    parseSource();
   }catch(e){
     $("fetchStatus").innerHTML='<span class="bad">取得できませんでした。</span> '+(e.message||"")+"<br>この場合はページ本文をコピーして貼り付けてください。";
   }
@@ -105,6 +105,98 @@ async function fetchResultUrl(){
   }
 }
 
+function detectSource(url, raw){
+  const u=(url||"").toLowerCase();
+  if(u.includes("netkeiba.com") || /race\.sp\.netkeiba\.com/.test(u)) return "netkeiba";
+  if(u.includes("jra.go.jp")) return "jra";
+  if((raw||"").includes("netkeiba") && /\|\s*馬番\s*\|/.test(raw)) return "netkeiba";
+  if((raw||"").includes("出馬表") && ((raw||"").includes("負担重量") || (raw||"").includes("騎手名"))) return "jra";
+  return "jra";
+}
+function cleanNetkeiba(s){
+  return clean((s||"").replace(/\[Select\]/g,"").replace(/\[Button[^\]]*\]/g,"").replace(/Image/g,"").replace(/\[Input\]/g,"").replace(/\s+/g," ").trim());
+}
+function parseNetkeiba(raw){
+  const lines=raw.replace(/\r/g,"").split("\n");
+  let out=[];
+  let sawUserMarkdown=false;
+  for(const line of lines){
+    if(!/^\s*\|/.test(line)) continue;
+    const cells=line.split("|").slice(1,-1).map(x=>cleanNetkeiba(x));
+    if(cells.length<5) continue;
+    if(!cells.some(x=>/牡\d+|牝\d+|せん\d+/.test(x))) continue;
+    const joined=cells.join(" ");
+    if(/馬番|登録|グループ/.test(joined)) continue;
+
+    // Format A: the user's extracted Markdown:
+    // | 馬番 | | 馬名 牝2 騎手 52.0 | 440.5 12人気 | 398(-2) |
+    if(/^\d{1,2}$/.test(cells[0]) && cells[1]==="" && cells[2]){
+      const no=+cells[0], info=cells[2];
+      const mm=info.match(/^(.+?)\s+(牡|牝|せん)(\d+)\s+(.+?)\s+(\d{2}(?:\.\d+)?)$/);
+      if(mm){
+        let odds=null,pop=null,om=(cells[3]||"").match(/(\d+(?:\.\d+)?)[^\d]*(\d+)\s*人気/);
+        if(om){odds=+om[1];pop=+om[2];}else{om=(cells[3]||"").match(/^(\d+(?:\.\d+)?)/);if(om)odds=+om[1];}
+        let body=null,diff=0,bm=(cells[4]||"").match(/(\d{3})\s*\(\s*([+-]?\d+)\s*\)/);
+        if(bm){body=+bm[1];diff=+bm[2];}
+        out.push({no,name:mm[1],odds,pop,body,diff,wt:+mm[5],jockey:stripMark(mm[4]),trainer:"",father:"",mother:"",sexage:mm[2]+mm[3],tags:[],cancel:false});
+        sawUserMarkdown=true;
+        continue;
+      }
+    }
+
+    // Format B: actual netkeiba table:
+    // | 枠 | 馬番 | 印 | 馬名 | 性齢 | 斤量 | 騎手 | 厩舎 | 馬体重(増減) | ... | 人気 |
+    let horseNo=-1;
+    for(let i=0;i<Math.min(cells.length,4);i++){if(/^\d{1,2}$/.test(cells[i])){horseNo=i;break;}}
+    if(horseNo<0) continue;
+    const no=+cells[horseNo];
+    let name="",sexage="",jockey="",wt=null,body=null,diff=0,odds=null,pop=null;
+    const sexIndex=cells.findIndex(x=>/^(牡|牝|せん)\d+$/.test(x));
+    if(sexIndex>=0){
+      sexage=cells[sexIndex];
+      if(sexIndex>0) name=cells[sexIndex-1].replace(/Image/g,"").trim();
+      // In the standard table: sexage -> 斤量 -> 騎手
+      if(cells[sexIndex+1]){let wm=cells[sexIndex+1].match(/(\d{2}(?:\.\d+)?)/);if(wm)wt=+wm[1];}
+      if(cells[sexIndex+2])jockey=stripMark(cells[sexIndex+2]);
+    }
+    const bmCell=cells.find(x=>/\d{3}\s*\(\s*[+-]?\d+\s*\)/.test(x));
+    if(bmCell){let bm=bmCell.match(/(\d{3})\s*\(\s*([+-]?\d+)\s*\)/);if(bm){body=+bm[1];diff=+bm[2];}}
+    for(const c of cells){
+      let om=c.match(/^(\d+(?:\.\d+)?)\s+(\d+)\s*人気$/);if(om){odds=+om[1];pop=+om[2];}
+      if(odds===null){om=c.match(/(\d+(?:\.\d+)?)[^\d]+(\d+)\s*人気/);if(om){odds=+om[1];pop=+om[2];}}
+    }
+    if(name && sexage) out.push({no,name,odds,pop,body,diff,wt,jockey,trainer:"",father:"",mother:"",sexage,tags:[],cancel:false});
+  }
+
+  // Last fallback for raw Markdown where table formatting was flattened.
+  if(out.length===0){
+    const re=/^\|\s*(\d{1,2})\s*\|\s*\|\s*(.*?)\s*\|\s*([\d.]+)\s+(\d+)\s*人気\s*\|\s*(\d{3})\s*\(([+-]?\d+)\)\s*\|/gm;
+    let m;
+    while((m=re.exec(raw))){
+      const info=cleanNetkeiba(m[2]), mm=info.match(/^(.+?)\s+(牡|牝|せん)(\d+)\s+(.+?)\s+(\d{2}(?:\.\d+)?)$/);
+      if(mm) out.push({no:+m[1],name:mm[1],odds:+m[3],pop:+m[4],body:+m[5],diff:+m[6],wt:+mm[5],jockey:stripMark(mm[4]),trainer:"",father:"",mother:"",sexage:mm[2]+mm[3],tags:[],cancel:false});
+    }
+  }
+  out.sort((a,b)=>a.no-b.no);
+  const unique=[];const seen=new Set();for(const h of out){if(!seen.has(h.no)){seen.add(h.no);unique.push(h);}}
+  if(!unique.length) throw new Error("netkeibaの出馬表表を認識できませんでした。ページ本文をそのまま貼り付けて再実行してください。");
+  return unique;
+}
+function parseSource(){
+  const raw=$("source").value;
+  if(!raw.trim()){$("status").innerHTML='<span class="warn">データを入力してください。</span>';return;}
+  const forced=$("sourceType").value;
+  const src=forced==="auto"?detectSource($("sourceUrl").value,raw):forced;
+  $("sourceDetected").innerHTML=`判定：<b>${src==="netkeiba"?"netkeiba":"JRA"}</b>`;
+  try{
+    if(src==="netkeiba"){
+      horses=parseNetkeiba(raw);
+      renderPreview();
+    }else parseJRA();
+  }catch(e){
+    $("status").innerHTML='<span class="bad">抽出できませんでした。</span> '+(e.message||"");
+  }
+}
 function parseJRA(){
   const raw=$("source").value;
   const lines=raw.split(/\n/).map(clean).filter(Boolean);
@@ -339,5 +431,6 @@ function sample(){
   parseJRA();
 }
 function clearAll(){$("source").value="";$("sourceUrl").value="";horses=[];predicted=[];$("preview").classList.add("hidden");$("analysis").classList.add("hidden");$("status").textContent="クリアしました。"}
+if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{});}
 </script>
 </body></html>
