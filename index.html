@@ -6,23 +6,29 @@
 body{margin:0;background:#f3f5f7;color:#17202a;font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}header{background:#17202a;color:#fff;padding:14px;position:sticky;top:0;z-index:5}h1{font-size:18px;margin:0}.sub{font-size:10px;opacity:.75}main{max-width:1050px;margin:auto;padding:10px}.card{background:#fff;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 2px 9px #0001}h2{font-size:15px;margin:0 0 10px}.notice,.status{font-size:10px;line-height:1.6;background:#f8fafc;padding:9px;border-radius:9px}textarea,input,select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #d0d5dd;border-radius:9px;margin-top:5px;font:inherit}textarea{min-height:180px;font-size:11px}.row{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}button{border:0;border-radius:10px;padding:11px 12px;background:#1769e0;color:#fff;font-weight:700;flex:1;min-width:120px}.secondary{background:#475467}.hidden{display:none}.good{color:#087443;font-weight:700}.warn{color:#b54708;font-weight:700}.bad{color:#b42318;font-weight:700}table{width:100%;border-collapse:collapse;font-size:10px}th,td{padding:6px;border-bottom:1px solid #eee;text-align:left}.rank{display:grid;grid-template-columns:38px 1fr;gap:8px;padding:10px 0;border-bottom:1px solid #eee}.num{font-size:20px;font-weight:900}.horse{font-weight:800;font-size:13px}.tag{font-size:9px;background:#eef2ff;border-radius:99px;padding:4px 6px;display:inline-block;margin:2px}.hot{background:#fff1f0}.muted{font-size:10px;color:#667085;line-height:1.5}.comment{border-left:3px solid #1769e0;background:#f8fafc;padding:8px;margin:6px 0;font-size:11px;line-height:1.5}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media(max-width:650px){.grid{grid-template-columns:1fr}}
 </style></head><body>
-<header><h1>🐴 競馬分析 v2.6</h1><div class="sub">JRA出馬表・結果表の貼り付け対応</div></header><main>
+<header><h1>🐴 競馬分析 v2.7</h1><div class="sub">貼り付け＋公開ページURL取得に対応</div></header><main>
 <section class="card"><h2>① レース指定</h2><div class="grid">
 <div><label>日付</label><input id="date" type="date"></div><div><label>競馬場</label><select id="track"><option>中山</option><option>東京</option><option>阪神</option><option>京都</option><option>福島</option><option>新潟</option><option>中京</option><option>札幌</option><option>函館</option><option>小倉</option></select></div>
 <div><label>R</label><select id="race"></select></div><div><label>距離(m)</label><input id="distance" type="number" value="1200"></div></div></section>
 
-<section class="card"><h2>② JRA出馬表をそのまま貼り付け</h2>
+<section class="card"><h2>② データ取得方法</h2>
+<div class="notice"><strong>貼り付け方式は従来どおり使えます。</strong><br>新しく、公開されているJRA/JBIS/その他のレースページURLから本文を取得して、自動抽出できるようにしました。取得には公開ページ用の読み取り中継を使います。サイト側の制限・規約・仕様変更によって取得できない場合は、貼り付け方式へ切り替えてください。</div>
+<input id="sourceUrl" type="url" placeholder="例：https://www.jra.go.jp/... または https://www.jbis.or.jp/..."><div class="row"><button onclick="fetchSourceUrl()">🌐 URLから取得</button><button class="secondary" onclick="openSourceUrl()">↗ ページを開く</button></div><div id="fetchStatus" class="status">URL取得待ち</div></section>
+
+<section class="card"><h2>③ JRA出馬表をそのまま貼り付け</h2>
 <div class="notice"><strong>URLではなく、JRA出馬表の文字をそのまま貼り付けます。<br><b>騎手は斤量の直後、取消は馬番の欠番から自動判定します。</b></strong><br>[馬名](URL)、**オッズ**、▲△、取消などが混ざっていてもOKです。</div>
 <textarea id="source" placeholder="JRA出馬表をここに貼り付け"></textarea>
 <div class="row"><button onclick="parseJRA()">🔎 自動抽出</button><button class="secondary" onclick="sample()">🧪 サンプル</button><button class="secondary" onclick="clearAll()">🗑 クリア</button></div><div id="status" class="status">待機中</div></section>
 
-<section id="preview" class="card hidden"><h2>③ 抽出結果を確認</h2><div id="summary" class="status"></div><div id="table"></div><div class="row"><button onclick="runAnalysis()">🏆 分析開始</button></div></section>
+<section id="preview" class="card hidden"><h2>④ 抽出結果を確認</h2><div id="summary" class="status"></div><div id="table"></div><div class="row"><button onclick="runAnalysis()">🏆 分析開始</button></div></section>
 
 <section id="analysis" class="hidden"><section class="card"><h2>🏆 おすすめ順</h2><div id="ranking"></div></section>
 <section class="card"><h2>🔥 条件変化チェック</h2><div id="changes"></div></section><section class="card"><h2>⏱ 1000m予想</h2><div id="time"></div><div class="muted">※現段階は距離・過去走を利用した暫定値です。</div></section>
 <section class="card"><h2>🏇 展開予想</h2><div id="flow"></div></section><section class="card"><h2>💬 馬体・厩舎・騎手</h2><div id="comments"></div></section>
 <section class="card"><h2>🏁 答え合わせ</h2>
-<div class="notice"><strong>JRAのレース結果をそのまま貼り付ければOK。</strong><br><b>JRAの結果表を丸ごとコピー＆貼り付けでOKです。</b><br>「着順・枠・馬番・馬名」の4列形式、1着 7 の簡易形式の両方に対応します。</div>
+<div class="notice"><strong>結果も「URL取得」または「丸ごと貼り付け」に対応。</strong><br>JRA/JBIS等の公開結果ページURLを入れて取得するか、今まで通りJRA結果表をそのまま貼り付けてください。</div>
+<input id="resultUrl" type="url" placeholder="結果ページURL（JRA / JBIS / その他の公開ページ）"><div class="row"><button onclick="fetchResultUrl()">🌐 結果URLから取得</button><button class="secondary" onclick="openResultUrl()">↗ ページを開く</button></div>
+<div id="resultFetchStatus" class="status">結果URL取得待ち</div>
 <textarea id="result" placeholder="JRAレース結果をここに貼り付け"></textarea>
 <div class="row"><button onclick="parseResult()">🏁 結果を自動抽出して答え合わせ</button><button class="secondary" onclick="clearResult()">🗑 結果クリア</button></div>
 <div id="resultStatus" class="status">結果待ち</div><div id="review"></div></section></section>
@@ -54,6 +60,50 @@ function isHorseName(s){
   return /[一-龥々ぁ-んァ-ヶ]/.test(s);
 }
 function isHorseNo(s){return /^(?:[1-9]|1[0-8])$/.test(s);}
+
+async function fetchViaReader(url){
+  url=(url||"").trim();
+  if(!/^https?:\/\//i.test(url)) throw new Error("http:// または https:// のURLを入力してください。");
+  const endpoint="https://r.jina.ai/"+url;
+  const ctl=new AbortController();
+  const timer=setTimeout(()=>ctl.abort(),20000);
+  try{
+    const res=await fetch(endpoint,{signal:ctl.signal,headers:{"Accept":"text/plain"}});
+    if(!res.ok) throw new Error("取得失敗（HTTP "+res.status+"）");
+    const text=await res.text();
+    if(!text||text.length<80) throw new Error("ページ本文を十分に取得できませんでした。");
+    return text;
+  }finally{clearTimeout(timer);}
+}
+function openUrl(url){if(url) window.open(url,"_blank","noopener,noreferrer");}
+function openSourceUrl(){openUrl($("sourceUrl").value.trim());}
+function openResultUrl(){openUrl($("resultUrl").value.trim());}
+async function fetchSourceUrl(){
+  const url=$("sourceUrl").value.trim();
+  if(!url){$("fetchStatus").innerHTML='<span class="warn">URLを入力してください。</span>';return;}
+  $("fetchStatus").textContent="取得中…";
+  try{
+    const text=await fetchViaReader(url);
+    $("source").value=text;
+    $("fetchStatus").innerHTML='<span class="good">取得しました。</span> 下の「自動抽出」を押してください。';
+    parseJRA();
+  }catch(e){
+    $("fetchStatus").innerHTML='<span class="bad">取得できませんでした。</span> '+(e.message||"")+"<br>この場合はページ本文をコピーして貼り付けてください。";
+  }
+}
+async function fetchResultUrl(){
+  const url=$("resultUrl").value.trim();
+  if(!url){$("resultFetchStatus").innerHTML='<span class="warn">URLを入力してください。</span>';return;}
+  $("resultFetchStatus").textContent="取得中…";
+  try{
+    const text=await fetchViaReader(url);
+    $("result").value=text;
+    $("resultFetchStatus").innerHTML='<span class="good">取得しました。</span> 「結果を自動抽出して答え合わせ」を押してください。';
+    parseResult();
+  }catch(e){
+    $("resultFetchStatus").innerHTML='<span class="bad">取得できませんでした。</span> '+(e.message||"")+"<br>この場合は結果ページ本文をコピーして貼り付けてください。";
+  }
+}
 
 function parseJRA(){
   const raw=$("source").value;
@@ -288,6 +338,6 @@ function sample(){
 [田辺 裕信](https://example.com)`;
   parseJRA();
 }
-function clearAll(){$("source").value="";horses=[];predicted=[];$("preview").classList.add("hidden");$("analysis").classList.add("hidden");$("status").textContent="クリアしました。"}
+function clearAll(){$("source").value="";$("sourceUrl").value="";horses=[];predicted=[];$("preview").classList.add("hidden");$("analysis").classList.add("hidden");$("status").textContent="クリアしました。"}
 </script>
 </body></html>
