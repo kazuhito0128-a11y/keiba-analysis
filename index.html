@@ -1,0 +1,537 @@
+<!doctype html><html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#17202a"><link rel="manifest" href="manifest.json">
+<title>競馬分析 v2.13</title>
+<style>
+body{margin:0;background:#f3f5f7;color:#17202a;font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}header{background:#17202a;color:#fff;padding:14px;position:sticky;top:0;z-index:5}h1{font-size:18px;margin:0}.sub{font-size:10px;opacity:.75}main{max-width:1050px;margin:auto;padding:10px}.card{background:#fff;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 2px 9px #0001}h2{font-size:15px;margin:0 0 10px}.notice,.status{font-size:10px;line-height:1.6;background:#f8fafc;padding:9px;border-radius:9px}textarea,input,select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #d0d5dd;border-radius:9px;margin-top:5px;font:inherit}textarea{min-height:180px;font-size:11px}.row{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}button{border:0;border-radius:10px;padding:11px 12px;background:#1769e0;color:#fff;font-weight:700;flex:1;min-width:120px}.secondary{background:#475467}.hidden{display:none}.good{color:#087443;font-weight:700}.warn{color:#b54708;font-weight:700}.bad{color:#b42318;font-weight:700}table{width:100%;border-collapse:collapse;font-size:10px}th,td{padding:6px;border-bottom:1px solid #eee;text-align:left}.rank{display:grid;grid-template-columns:38px 1fr;gap:8px;padding:10px 0;border-bottom:1px solid #eee}.num{font-size:20px;font-weight:900}.horse{font-weight:800;font-size:13px}.tag{font-size:9px;background:#eef2ff;border-radius:99px;padding:4px 6px;display:inline-block;margin:2px}.hot{background:#fff1f0}.muted{font-size:10px;color:#667085;line-height:1.5}.comment{border-left:3px solid #1769e0;background:#f8fafc;padding:8px;margin:6px 0;font-size:11px;line-height:1.5}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media(max-width:650px){.grid{grid-template-columns:1fr}}
+</style></head><body>
+<header><h1>🐴 競馬分析 v2.13</h1><div class="sub">JRA＋netkeiba自動判定／調教・展開・条件変化を統合分析</div></header><main>
+<section class="card"><h2>① レース指定</h2><div class="grid">
+<div><label>日付</label><input id="date" type="date"></div><div><label>競馬場</label><select id="track"><option>中山</option><option>東京</option><option>阪神</option><option>京都</option><option>福島</option><option>新潟</option><option>中京</option><option>札幌</option><option>函館</option><option>小倉</option></select></div>
+<div><label>R</label><select id="race"></select></div><div><label>距離(m)</label><input id="distance" type="number" value="1200"></div></div></section>
+
+<section class="card"><h2>② データ取得方法</h2>
+<div class="notice"><strong>貼り付け方式は従来どおり使えます。</strong><br>新しく、公開されているJRA/JBIS/その他のレースページURLから本文を取得して、自動抽出できるようにしました。取得には公開ページ用の読み取り中継を使います。サイト側の制限・規約・仕様変更によって取得できない場合は、貼り付け方式へ切り替えてください。</div>
+<select id="sourceType"><option value="auto">自動判定（JRA / netkeiba）</option><option value="jra">JRA</option><option value="netkeiba">netkeiba</option></select><input id="sourceUrl" type="url" placeholder="JRA または netkeiba の出馬表URL"><div class="row"><button onclick="fetchSourceUrl()">🌐 URLから取得</button><button class="secondary" onclick="openSourceUrl()">↗ ページを開く</button></div><div id="fetchStatus" class="status">URL取得待ち</div><div id="sourceDetected" class="status muted">取得後にサイト形式を自動判定します。</div></section>
+
+<section class="card"><h2>③ JRA出馬表をそのまま貼り付け</h2>
+<div class="notice"><strong>URLではなく、JRA出馬表の文字をそのまま貼り付けます。<br><b>騎手は斤量の直後、取消は馬番の欠番から自動判定します。</b></strong><br>[馬名](URL)、**オッズ**、▲△、取消などが混ざっていてもOKです。</div>
+<textarea id="source" placeholder="JRA出馬表をここに貼り付け"></textarea>
+<div class="row"><button onclick="parseSource()">🔎 自動抽出</button><button class="secondary" onclick="sample()">🧪 サンプル</button><button class="secondary" onclick="clearAll()">🗑 クリア</button></div><div id="status" class="status">待機中</div></section>
+
+<section id="preview" class="card hidden"><h2>④ 抽出結果を確認</h2><div id="summary" class="status"></div><div id="table"></div><div class="row"><button onclick="runAnalysis()">🏆 分析開始</button></div></section>
+
+<section id="analysis" class="hidden"><section class="card"><h2>🏆 総合分析・おすすめ順</h2><div id="analysisNote" class="notice"></div><div id="ranking"></div></section><section class="card"><h2>📊 分析材料の取得状況</h2><div id="dataQuality"></div></section>
+<section class="card"><h2>🔥 条件変化チェック</h2><div id="changes"></div></section><section class="card"><h2>⏱ 1000m予想</h2><div id="time"></div><div class="muted">※現段階は距離・過去走を利用した暫定値です。</div></section>
+<section class="card"><h2>🏇 展開予想</h2><div id="flow"></div></section><section class="card"><h2>🏋️ 調教・AI・厩舎情報</h2><div id="comments"></div></section>
+<section class="card"><h2>🏁 答え合わせ</h2>
+<div class="notice"><strong>結果も「URL取得」または「丸ごと貼り付け」に対応。</strong><br>JRA/JBIS等の公開結果ページURLを入れて取得するか、今まで通りJRA結果表をそのまま貼り付けてください。</div>
+<input id="resultUrl" type="url" placeholder="結果ページURL（JRA / JBIS / その他の公開ページ）"><div class="row"><button onclick="fetchResultUrl()">🌐 結果URLから取得</button><button class="secondary" onclick="openResultUrl()">↗ ページを開く</button></div>
+<div id="resultFetchStatus" class="status">結果URL取得待ち</div>
+<textarea id="result" placeholder="JRAレース結果をここに貼り付け"></textarea>
+<div class="row"><button onclick="parseResult()">🏁 結果を自動抽出して答え合わせ</button><button class="secondary" onclick="clearResult()">🗑 結果クリア</button></div>
+<div id="resultStatus" class="status">結果待ち</div><div id="review"></div></section></section>
+</main>
+
+<script>
+let horses=[],predicted=[];const $=id=>document.getElementById(id);
+for(let i=1;i<=12;i++){let o=document.createElement("option");o.value=i;o.textContent=i+"R";$("race").appendChild(o)}
+$("date").value=new Date().toISOString().slice(0,10);
+
+function clean(s){
+  return s.replace(/\r/g,"").replace(/\u00a0/g," ")
+    .replace(/\*\*/g,"")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g,"$1")
+    .replace(/https?:\/\/\S+/g,"")
+    .replace(/[ \t]+/g," ").trim();
+}
+function stripMark(s){return (s||"").replace(/^[▲△★◇◎○☆]\s*/,"").trim();}
+function isPersonName(s){
+  s=stripMark(s);
+  if(!s||s.length<2||s.length>16)return false;
+  if(/牧場|ファーム|クラブ|美浦|栗東|馬主|生産|父：|母：|頭$|着$|人気|芝|ダ|良|重|稍|新馬|未勝利/.test(s))return false;
+  return /^[一-龥々ぁ-んァ-ヶ・]+(?:\s+[一-龥々ぁ-んァ-ヶ・]+){1,2}$/.test(s);
+}
+function isHorseName(s){
+  if(!s||s.length<2||s.length>30)return false;
+  if(/^(枠|馬名|勝負服|父|母|牡|牝|せん|取消|前走|前々走|3走前|4走前)/.test(s))return false;
+  if(/^\d/.test(s)||/kg$/.test(s)||/番人気/.test(s))return false;
+  return /[一-龥々ぁ-んァ-ヶ]/.test(s);
+}
+function isHorseNo(s){return /^(?:[1-9]|1[0-8])$/.test(s);}
+
+async function fetchViaReader(url){
+  url=(url||"").trim();
+  if(!/^https?:\/\//i.test(url)) throw new Error("http:// または https:// のURLを入力してください。");
+  const endpoint="https://r.jina.ai/"+url;
+  const ctl=new AbortController();
+  const timer=setTimeout(()=>ctl.abort(),20000);
+  try{
+    const res=await fetch(endpoint,{signal:ctl.signal,headers:{"Accept":"text/plain"}});
+    if(!res.ok) throw new Error("取得失敗（HTTP "+res.status+"）");
+    const text=await res.text();
+    if(!text||text.length<80) throw new Error("ページ本文を十分に取得できませんでした。");
+    return text;
+  }finally{clearTimeout(timer);}
+}
+function openUrl(url){if(url) window.open(url,"_blank","noopener,noreferrer");}
+function openSourceUrl(){openUrl($("sourceUrl").value.trim());}
+function openResultUrl(){openUrl($("resultUrl").value.trim());}
+async function fetchSourceUrl(){
+  const url=$("sourceUrl").value.trim();
+  if(!url){$("fetchStatus").innerHTML='<span class="warn">URLを入力してください。</span>';return;}
+  $("fetchStatus").textContent="取得中…";
+  try{
+    const text=await fetchViaReader(url);
+    $("source").value=text;
+    $("fetchStatus").innerHTML='<span class="good">取得しました。</span> 下の「自動抽出」を押してください。';
+    parseSource();
+  }catch(e){
+    $("fetchStatus").innerHTML='<span class="bad">取得できませんでした。</span> '+(e.message||"")+"<br>この場合はページ本文をコピーして貼り付けてください。";
+  }
+}
+async function fetchResultUrl(){
+  const url=$("resultUrl").value.trim();
+  if(!url){$("resultFetchStatus").innerHTML='<span class="warn">URLを入力してください。</span>';return;}
+  $("resultFetchStatus").textContent="取得中…";
+  try{
+    const text=await fetchViaReader(url);
+    $("result").value=text;
+    $("resultFetchStatus").innerHTML='<span class="good">取得しました。</span> 「結果を自動抽出して答え合わせ」を押してください。';
+    parseResult();
+  }catch(e){
+    $("resultFetchStatus").innerHTML='<span class="bad">取得できませんでした。</span> '+(e.message||"")+"<br>この場合は結果ページ本文をコピーして貼り付けてください。";
+  }
+}
+
+function detectSource(url, raw){
+  const u=(url||"").toLowerCase();
+  if(u.includes("netkeiba.com") || /race\.sp\.netkeiba\.com/.test(u)) return "netkeiba";
+  if(u.includes("jra.go.jp")) return "jra";
+  if((raw||"").includes("netkeiba") && /\|\s*馬番\s*\|/.test(raw)) return "netkeiba";
+  if((raw||"").includes("出馬表") && ((raw||"").includes("負担重量") || (raw||"").includes("騎手名"))) return "jra";
+  return "jra";
+}
+function cleanNetkeiba(s){
+  let x=(s||"");
+  // Markdown化されたnetkeibaでは、馬名・騎手・DBリンクが
+  // [表示文字](URL) と ![画像](URL) で埋め込まれる。
+  // URL部分を残すと、騎手の斤量の直後にURLが付き、従来の正規表現が失敗する。
+  x=x.replace(/!\[([^\]]*)\]\([^)]*\)/g, " ");
+  x=x.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1");
+  x=x.replace(/\[Select\]/g,"").replace(/\[Button[^\]]*\]/g,"").replace(/\[Input\]/g,"");
+  x=x.replace(/\s+/g," ").trim();
+  return x;
+}
+function parseNetkeibaHorseCell(info){
+  const raw=(info||"").trim();
+  const clean=cleanNetkeiba(raw);
+  const sexm=clean.match(/(牡|牝|せん)\s*(\d{1,2})/);
+  if(!sexm) return null;
+  const sexage=sexm[1]+sexm[2];
+  let name="";
+  const firstLink=raw.match(/^\s*\[([^\]]+)\]\([^)]*\)/);
+  if(firstLink) name=cleanNetkeiba(firstLink[1]).trim();
+  if(!name){
+    const before=clean.slice(0, sexm.index);
+    name=before.replace(/Image/g," ").replace(/お気に入り馬/g," ").trim();
+  }
+  let jockey="", wt=null;
+  const jockeyLinkRe=/\[([^\]]*?)(\d{2}(?:\.\d+)?)[^\]]*\]\([^)]*\)/g;
+  let jm;
+  while((jm=jockeyLinkRe.exec(raw))){
+    const display=cleanNetkeiba(jm[1]).replace(/[▲△☆★]/g,"").trim();
+    wt=+jm[2];
+    if(display && !/^(馬名|データベース)$/.test(display)) jockey=display.replace(/\s+/g," ").trim();
+  }
+  if(!jockey){
+    const after=clean.slice((sexm.index||0)+sexm[0].length);
+    const wm=after.match(/([▲△☆★]?\s*[一-龯々ァ-ヶA-Za-z\.･·\s]+?)\s+(\d{2}(?:\.\d+)?)/);
+    if(wm){jockey=wm[1].replace(/[▲△☆★]/g,"").trim();wt=+wm[2];}
+  }
+  if(!name) return null;
+  return {name,sexage,jockey:stripMark(jockey),wt};
+}
+function parseNetkeiba(raw){
+  const lines=raw.replace(/\r/g,"").split("\n");
+  const out=[]; let seq=1;
+  function cellsFromLine(line){
+    if(!/^\s*\|/.test(line)) return [];
+    return line.split("|").slice(1,-1);
+  }
+  function sep(cells){return cells.length>0 && cells.every(c=>/^\s*:?-{2,}:?\s*$/.test(c));}
+  function odds(cells){
+    for(const c0 of cells){
+      const c=cleanNetkeiba(c0);
+      let m=c.match(/(\d+(?:\.\d+)?)\s*(\d+)\s*人気/);
+      if(m) return {odds:+m[1],pop:+m[2]};
+      if(/オッズ|人気/.test(c)){
+        m=c.match(/(\d+(?:\.\d+)?)/); if(m) return {odds:+m[1],pop:null};
+      }
+    }
+    return {odds:null,pop:null};
+  }
+  function body(cells){
+    for(const c0 of cells){
+      const c=cleanNetkeiba(c0), m=c.match(/(\d{3})\s*\(\s*([+-]?\d+)\s*\)/);
+      if(m) return {body:+m[1],diff:+m[2]};
+    }
+    return {body:null,diff:0};
+  }
+  for(const line of lines){
+    const rawCells=cellsFromLine(line); if(!rawCells.length || sep(rawCells)) continue;
+    const cells=rawCells.map(cleanNetkeiba);
+    if(cells.some(x=>/^(馬番|馬名|性齢|斤量|騎手|予想\s*オッズ|最終\s*オッズ|チェック)$/.test(x))) continue;
+    const infoIndex=cells.findIndex(x=>/(牡|牝|せん)\s*\d{1,2}/.test(x));
+    if(infoIndex<0) continue;
+    const hm=parseNetkeibaHorseCell(rawCells[infoIndex]); if(!hm) continue;
+    // Prefer a standalone horse number before the horse-info cell. Otherwise use sequence.
+    let no=null;
+    for(let i=0;i<infoIndex;i++){
+      const m=cells[i].match(/^\d{1,2}$/); if(m){no=+m[0]; break;}
+    }
+    if(no===null) no=seq;
+    seq=Math.max(seq,no+1);
+    const op=odds(cells), bw=body(cells);
+    out.push({no,name:hm.name,odds:op.odds,pop:op.pop,body:bw.body,diff:bw.diff,wt:hm.wt,jockey:hm.jockey,trainer:"",father:"",mother:"",sexage:hm.sexage,tags:[],cancel:false});
+  }
+  // Flattened / slightly different Markdown fallback.
+  if(!out.length){
+    const blocks=raw.split(/\n(?=\s*\|\s*\d{1,2}\s*\|)/);
+    for(const block of blocks){
+      const m=block.match(/\|\s*(\d{1,2})\s*\|[\s\S]*?\|\s*([^|]*?(?:牡|牝|せん)\s*\d{1,2}[^|]*)\|\s*([^|]*)\|\s*([^|]*)\|/);
+      if(!m) continue;
+      const hm=parseNetkeibaHorseCell(m[2]); if(!hm) continue;
+      const om=m[3].match(/(\d+(?:\.\d+)?)\s*(\d+)\s*人気/), bm=m[4].match(/(\d{3})\s*\(\s*([+-]?\d+)\s*\)/);
+      out.push({no:+m[1],name:hm.name,odds:om?+om[1]:null,pop:om?+om[2]:null,body:bm?+bm[1]:null,diff:bm?+bm[2]:0,wt:hm.wt,jockey:hm.jockey,trainer:"",father:"",mother:"",sexage:hm.sexage,tags:[],cancel:false});
+    }
+  }
+  out.sort((a,b)=>a.no-b.no);
+  const unique=[],seen=new Set(); for(const h of out){if(!seen.has(h.no)){seen.add(h.no);unique.push(h);}}
+  if(!unique.length) throw new Error("netkeibaの出馬表を認識できませんでした。ページ本文をそのまま貼り付けて再実行してください。");
+  return unique;
+}
+function parseSource(){
+  const raw=$("source").value;
+  if(!raw.trim()){$("status").innerHTML='<span class="warn">データを入力してください。</span>';return;}
+  const forced=$("sourceType").value;
+  const src=forced==="auto"?detectSource($("sourceUrl").value,raw):forced;
+  $("sourceDetected").innerHTML=`判定：<b>${src==="netkeiba"?"netkeiba":"JRA"}</b>`;
+  try{
+    if(src==="netkeiba"){
+      horses=parseNetkeiba(raw);
+      renderPreview();
+    }else parseJRA();
+  }catch(e){
+    $("status").innerHTML='<span class="bad">抽出できませんでした。</span> '+(e.message||"");
+  }
+}
+function parseJRA(){
+  const raw=$("source").value;
+  const lines=raw.split(/\n/).map(clean).filter(Boolean);
+  let starts=[];
+  // JRA current horse-number lines are standalone 1-18. Historical race data
+  // contains strings such as "16頭12番5番人気", so it is not mistaken for a start.
+  for(let i=0;i<lines.length;i++){
+    if(isHorseNo(lines[i])) starts.push({idx:i,no:+lines[i]});
+  }
+  if(!starts.length){
+    $("status").innerHTML='<span class="bad">馬番を見つけられませんでした。</span>';
+    return;
+  }
+
+  let out=[];
+  for(let si=0;si<starts.length;si++){
+    const {idx:i,no}=starts[si];
+    let nextIdx=si+1<starts.length?starts[si+1].idx:lines.length;
+    let j=i+1;
+    while(j<nextIdx && /^枠[1-8][白黒赤青黄緑橙桃]?$/.test(lines[j])) j++;
+
+    // Cancellation: JRA places "取消" instead of a horse name.
+    if(j<nextIdx && lines[j]==="取消"){
+      out.push({no,name:"取消",cancel:true,tags:[]});
+      continue;
+    }
+    if(j>=nextIdx || !isHorseName(lines[j])) continue;
+
+    const name=lines[j];
+    const block=lines.slice(j+1,nextIdx);
+    let odds=null,pop=null,body=null,diff=0,wt=null,jockey="",trainer="",father="",mother="",sexage="";
+
+    for(const s0 of block){
+      const s=clean(s0);
+      let o=s.match(/^(\d+(?:\.\d+)?)\s*\((\d+)番人気\)$/);
+      if(o&&odds===null){odds=+o[1];pop=+o[2];}
+      let b=s.match(/^(\d{3})kg(?:\s*\(([+-]?\d+)\))?$/);
+      if(b&&body===null){body=+b[1];diff=+(b[2]||0);}
+      let w=s.match(/^[▲△★◇◎○☆]?\s*(\d{2}(?:\.\d+)?)kg$/);
+      if(w&&wt===null)wt=+w[1];
+      if(/\((美浦|栗東)\)/.test(s))trainer=s;
+      if(/^-\s*父[：:]/.test(s))father=s;
+      if(/^-\s*母[：:]/.test(s))mother=s;
+      if(/^(牡|牝|せん)\d+\/.+/.test(s))sexage=s;
+    }
+
+    // In the JRA card, the jockey is immediately AFTER the current
+    // race's carried-weight line. This is much safer than searching backward.
+    const wi=block.findIndex(s=>/^[▲△★◇◎○☆]?\s*\d{2}(?:\.\d+)?kg$/.test(s));
+    if(wi>=0){
+      for(let k=wi+1;k<Math.min(block.length,wi+4);k++){
+        const cand=stripMark(block[k]);
+        if(isPersonName(cand)){jockey=cand;break;}
+        // Stop before the next-race history if no jockey is found.
+        if(/^\d{4}年\d{1,2}月\d{1,2}日$/.test(cand)) break;
+      }
+    }
+
+    let tags=[],ctx=block.join(" ");
+    if(/初ブリンカー|初B|ブリンカー着用/.test(ctx))tags.push("初ブリンカー");
+    if(/芝からダート|芝→ダート/.test(ctx))tags.push("芝→ダート初戦");
+    if(/ダートから芝|ダート→芝/.test(ctx))tags.push("ダート→芝初戦");
+    if(/障害から平地|障害→平地/.test(ctx))tags.push("障害→平地初戦");
+
+    out.push({no,name,odds,pop,body,diff,wt,jockey,trainer,father,mother,sexage,tags,cancel:false});
+  }
+
+  // Infer a missing cancelled number when JRA has "取消" between two
+  // numbered runners (e.g. 5 -> 取消 -> 7 means No.6 was cancelled).
+  const cancels=lines.map((x,i)=>({x,i})).filter(v=>v.x==="取消");
+  for(const c of cancels){
+    const prevStart=starts.filter(s=>s.idx<c.i).slice(-1)[0];
+    const nextStart=starts.find(s=>s.idx>c.i);
+    if(prevStart && nextStart && nextStart.no===prevStart.no+2 &&
+       !out.some(h=>h.no===prevStart.no+1)){
+      out.push({no:prevStart.no+1,name:"取消",cancel:true,tags:[]});
+    }
+  }
+
+  out.sort((a,b)=>a.no-b.no);
+  const seen=new Set();
+  horses=out.filter(h=>!seen.has(h.no)&&seen.add(h.no));
+  enrichHorses(raw);
+  if(!horses.length){$("status").innerHTML='<span class="bad">抽出できませんでした。</span>';return}
+  renderPreview();
+}
+
+
+function parseExtraNetkeiba(raw){
+  const text=raw.replace(/\r/g,"");
+  const map=new Map();
+  // Training blocks in the pasted netkeiba Markdown.
+  const trRe=/\*\s+(\d{1,2})\s+([^\n]+)\n\s*\[前走\][^\n]*\n\s*([^\n]+)\n\s*([^\n]*)/g;
+  let m;
+  while((m=trRe.exec(text))){
+    const no=+m[1], line=(m[3]||"").trim(), extra=(m[4]||"").trim();
+    const grade=(line.match(/\b([ABC])\s*$/)||[])[1]||null;
+    const date=(line.match(/(\d{2}\/\d{2})/)||[])[1]||null;
+    const course=(line.match(/\s(美坂|美Ｗ|美W|栗坂|栗Ｗ|栗W|CW|坂路|南W|南Ｗ|障害)\s/)||[])[1]||null;
+    const timeParts=(line.match(/\s(\d{1,2}(?:\.\d+)?)\s+(\d{1,2}(?:\.\d+)?)\s+(\d{1,2}(?:\.\d+)?)\s+(\d{1,2}(?:\.\d+)?)\s+([\d.]+)\s*(?:$|強め|馬也|一杯)/)||[]);
+    map.set(no,{grade,date,course,line,extra,last4f:timeParts[1]?+timeParts[1]:null,last3f:timeParts[2]?+timeParts[2]:null,last2f:timeParts[3]?+timeParts[3]:null,last1f:timeParts[4]?+timeParts[4]:null});
+  }
+  // AI/pace information visible in the fetched text.
+  const pace=(text.match(/\*\s*ペース\s*\n\s*\n?\s*([SMAH]+)\b/)||[])[1]||null;
+  const est=(text.match(/\*\s*推定タイム\s*\n(?:.*\n){0,2}\s*([0-9]+:[0-9.]+)/)||[])[1]||null;
+  const aiView=(text.match(/AIによるこのレースの見解・推奨馬[\s\S]{0,500}?注目は\s*([0-9]{1,2})[.．]/)||[])[1];
+  const top={};
+  const cats=[['能力','能力'],['上昇度','上昇度'],['騎手','騎手'],['距離','距離']];
+  for(const [key,label] of cats){
+    const re=new RegExp('\\|\\s*'+label+'\\s*\\|[\\s\\S]*?\\|\\s*([^\\n]+)\\|');
+    const mm=text.match(re); if(mm){top[key]=[...mm[1].matchAll(/(?:^|\s)(\d{1,2})\s/g)].map(x=>+x[1]);}
+  }
+  // Stable comments, when the source actually includes them.
+  const comments={};
+  const cRe=/\|\s*(\d{1,2})\s*\|\s*(\d{1,2})\s*\|\s*([^|\n]+)\s*\|\s*([\s\S]*?)\|/g;
+  while((m=cRe.exec(text))){
+    const no=+m[2], comment=cleanNetkeiba(m[4]||"").replace(/\s+/g," ").trim();
+    if(comment && !/馬名|コメント|評価|登録/.test(comment)) comments[no]=comment;
+  }
+  return {training:map,pace,est,aiView:aiView?+aiView:null,top,comments};
+}
+function enrichHorses(raw){
+  const ex=parseExtraNetkeiba(raw);
+  for(const h of horses){
+    h.training=ex.training.get(h.no)||null;
+    h.stableComment=ex.comments[h.no]||"";
+    h.aiTags=[];
+    for(const k of Object.keys(ex.top)) if((ex.top[k]||[]).includes(h.no)) h.aiTags.push(k+'上位');
+    if(ex.aiView===h.no) h.aiTags.push('AI見解注目');
+  }
+  window.raceExtra=ex;
+}
+function renderPreview(){
+  let a=horses.filter(h=>!h.cancel),c=horses.filter(h=>h.cancel);
+  let bad=a.filter(h=>!h.jockey||h.odds===null||h.body===null||h.wt===null).length;
+  $("summary").innerHTML=`<span class="good">抽出 ${horses.length}頭</span>　出走 ${a.length}頭　取消 ${c.length}頭　`+
+    (bad?`<span class="warn">確認が必要 ${bad}頭</span>`:'<span class="good">主要項目OK</span>');
+  $("table").innerHTML="<table><tr><th>番</th><th>馬名</th><th>オッズ</th><th>馬体重</th><th>斤量</th><th>騎手</th><th>厩舎</th><th>条件変化</th></tr>"+
+    horses.map(h=>`<tr><td>${h.no}</td><td>${h.name}</td><td>${h.cancel?"取消":h.odds??"—"}</td><td>${h.body?`${h.body}kg ${h.diff>=0?"+":""}${h.diff}`:"—"}</td><td>${h.wt??"—"}kg</td><td>${h.jockey||"—"}</td><td>${h.trainer||"—"}</td><td>${h.tags.map(x=>"🔥"+x).join(" ")||"—"}</td></tr>`).join("")+"</table>";
+  $("preview").classList.remove("hidden");
+  $("status").innerHTML='<span class="good">自動抽出しました。</span> オッズ・馬体重・斤量・騎手を確認。厩舎・血統・調教は取得できた範囲だけ分析します。';
+}
+function runAnalysis(){
+  let a=horses.filter(h=>!h.cancel);
+  const oddsList=a.filter(h=>Number.isFinite(h.odds)).map(h=>h.odds), minOdds=Math.min(...oddsList), maxOdds=Math.max(...oddsList);
+  const norm=(v,lo,hi)=>hi===lo?50:100*(hi-v)/(hi-lo);
+  a.forEach(h=>{
+    let score=0, reasons=[], missing=[];
+    // 1) market baseline: useful as a reference, not the whole prediction.
+    if(Number.isFinite(h.odds)){const os=norm(h.odds,minOdds,maxOdds);score+=os*0.35;}
+    else missing.push('オッズ');
+    // 2) weight change: modest adjustment only; avoid assuming +kg is always good.
+    if(Number.isFinite(h.diff)){let w=Math.max(-2,Math.min(2,h.diff/5));score+=50+w*5; if(Math.abs(h.diff)>=8) reasons.push('馬体重変化大');}
+    else missing.push('馬体重増減');
+    // 3) training grade when present in fetched page.
+    if(h.training?.grade){const g={A:100,B:78,C:52}[h.training.grade]||60;score+=g*0.25;reasons.push('調教'+h.training.grade);}
+    else missing.push('調教');
+    // 4) netkeiba visible AI/data upper groups.
+    if(h.aiTags?.length){score+=Math.min(12,h.aiTags.length*4);reasons.push(...h.aiTags);}
+    else missing.push('能力/上昇度等');
+    // 5) jockey/trainer/bloodline are only scored if actual data is present.
+    if(h.jockey) score+=3; else missing.push('騎手');
+    if(h.father||h.mother) {score+=5; reasons.push('血統取得済');} else missing.push('血統');
+    if(h.trainer||h.stableComment) {score+=3; reasons.push('厩舎情報');} else missing.push('厩舎情報');
+    h.score=score; h.reasons=reasons; h.missing=missing;
+  });
+  predicted=[...a].sort((x,y)=>y.score-x.score);
+  const ex=window.raceExtra||{};
+  const sourceType=detectSource($('sourceUrl').value,$('source').value);
+  $('analysisNote').innerHTML=`<b>総合指数は「取得できた情報だけ」で計算しています。</b><br>市場オッズ35%＋調教25%＋馬体変化・AIデータ等を統合。取得できていない血統・厩舎情報を勝手に推定して加点しません。<br>情報不足の馬は「データ不足」と表示します。${ex.pace?` 展開ページからペース「${ex.pace}」を取得しました。`:''}`;
+  $('ranking').innerHTML=predicted.map((h,i)=>`<div class="rank"><div class="num">${i+1}</div><div><div class="horse">${h.no} ${h.name}</div><span class="tag">総合指数 ${h.score.toFixed(1)}</span>${h.training?.grade?`<span class="tag">調教 ${h.training.grade}</span>`:''}${h.reasons.map(t=>`<span class="tag hot">${t}</span>`).join('')}<div class="muted">オッズ ${h.odds??'—'}｜馬体 ${h.body??'—'}kg (${h.diff>=0?'+':''}${h.diff||0})｜斤量 ${h.wt??'—'}kg｜騎手 ${h.jockey||'—'}</div><div class="muted">${h.missing.length?'不足：'+h.missing.join('・'):'主要項目が揃っています'}</div></div></div>`).join('');
+  $('dataQuality').innerHTML=`<div class="comment"><b>取得元：</b>${sourceType}　<b>頭数：</b>${a.length}<br><b>調教：</b>${a.filter(h=>h.training).length}/${a.length}頭　<b>AI上位情報：</b>${a.filter(h=>h.aiTags?.length).length}/${a.length}頭　<b>血統：</b>${a.filter(h=>h.father||h.mother).length}/${a.length}頭　<b>厩舎：</b>${a.filter(h=>h.trainer||h.stableComment).length}/${a.length}頭<br>${ex.pace?`<b>netkeiba表示ペース：</b>${ex.pace}`:'ペース情報は未取得'}${ex.aiView?`　<b>AI見解注目：</b>${ex.aiView}番`:''}</div>`;
+  $('changes').innerHTML=predicted.filter(h=>h.tags.length||Math.abs(h.diff||0)>=8).map(h=>`<div class="comment"><b>${h.no} ${h.name}</b>：${h.tags.join('／')||'馬体重変化 '+(h.diff>=0?'+':'')+h.diff+'kg'}</div>`).join('')||'大きな条件変化は検出されませんでした';
+  $('time').textContent=ex.est||`${(+$('distance').value||1200)===1200?'57.0～59.0':'距離に応じた暫定レンジ'} 秒前後`;
+  $('flow').innerHTML=`<div class="comment"><b>レース全体</b>：${ex.pace?`取得ページではペース「${ex.pace}」表示。`:'ペース情報未取得。過去走の位置取りデータ追加で精度を上げます。'}</div><div class="comment"><b>今後の強化</b>：過去走→脚質→位置取り→上がり→距離適性を馬ごとに取り込み、展開シミュレーションへ接続します。</div>`;
+  $('comments').innerHTML=predicted.map(h=>`<div class="comment"><b>${h.no} ${h.name}</b><br>${h.training?`調教：${h.training.grade||'—'}　${h.training.line}`:'調教：未取得'}<br>厩舎コメント：${h.stableComment||'このページでは未提供'}<br>騎手：${h.jockey||'—'}<br>血統：${h.father||'未取得'}${h.mother?'／'+h.mother:''}</div>`).join('');
+  $('analysis').classList.remove('hidden');
+}
+function parseResult(){
+  const raw=$("result").value.replace(/\r/g,"");
+  if(!raw.trim()){
+    $("resultStatus").innerHTML='<span class="warn">結果を貼り付けてください。</span>';
+    return;
+  }
+  const lines=raw.split(/\n/).map(clean).filter(Boolean);
+  let found=[];
+  const add=(rank,no,frame=null)=>{
+    rank=+rank; no=+no;
+    if(!rank||rank>99||!no||no>18)return;
+    if(!found.some(x=>x.rank===rank)) found.push({rank,no,frame});
+  };
+
+  // JRAの結果表そのまま：
+  // 1  4  7  マリノエスプレッソ4番人気
+  // = 着順 / 枠 / 馬番 / 馬名
+  for(const line of lines){
+    let m=line.match(/^(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(.+)$/);
+    if(m){add(m[1],m[3],m[2]);continue;}
+
+    // 取消 3 6 ニシノドリーマー
+    m=line.match(/^取消\s+(\d{1,2})\s+(\d{1,2})\s+(.+)$/);
+    if(m){continue;}
+
+    // 1着 7 / 2着 13 / 3着 2 など
+    m=line.match(/^(\d{1,2})\s*(?:着|位)\s*(?:馬番)?\s*(\d{1,2})(?:番)?(?:\s|$)/);
+    if(m){add(m[1],m[2]);continue;}
+
+    // 1 7 マリノエスプレッソ（枠を省略した形式）
+    m=line.match(/^(\d{1,2})\s+(\d{1,2})\s+[^\d].*$/);
+    if(m){add(m[1],m[2]);continue;}
+
+    // 1着:7番 など
+    m=line.match(/(?:^|[\s,、/])([123])\s*(?:着|位)\s*[:：]?\s*(\d{1,2})\s*番?/);
+    if(m){add(m[1],m[2]);}
+  }
+
+  // 「着順」「枠」「馬番」「馬名 / 単勝人気」の見出しを除外し、
+  // 列が改行されている場合にも対応。
+  if(found.length<3){
+    for(let i=0;i<lines.length;i++){
+      if(!/^[1-9]\d?$/.test(lines[i])) continue;
+      const rank=+lines[i];
+      if(rank<1||rank>99) continue;
+      const a=lines[i+1], b=lines[i+2];
+      if(a&&b&&/^(?:[1-9]|1[0-8])$/.test(a)&&/^(?:[1-9]|1[0-8])$/.test(b)){
+        // 直後の2つが「枠」「馬番」の縦並びなら3つ目が馬番。
+        add(rank,b,a);
+      }
+    }
+  }
+
+  found.sort((a,b)=>a.rank-b.rank);
+  const top3=found.filter(x=>x.rank<=3).slice(0,3);
+  if(!top3.length){
+    $("resultStatus").innerHTML='<span class="bad">着順と馬番を自動認識できませんでした。</span><br>JRA結果表をそのまま貼り付けてください。';
+    return;
+  }
+  const actual=top3.map(x=>String(x.no));
+  let p=predicted.slice(0,3).map(h=>String(h.no));
+  if(!p.length){
+    $("resultStatus").innerHTML='<span class="warn">先に「分析開始」を行ってください。</span>';
+    return;
+  }
+  const hit=p.filter(x=>actual.includes(x)).length;
+  const exact=p.join(",")==actual.join(",");
+  const exactPosition=p.reduce((n,x,i)=>n+(actual[i]===x?1:0),0);
+
+  // 予想した各馬の実着順も表示
+  const predRows=predicted.slice(0,10).map((h,i)=>{
+    const r=found.find(x=>x.no===h.no);
+    return `<tr><td>${i+1}</td><td>${h.no} ${h.name}</td><td>${r?r.rank:"取消/不明"}</td></tr>`;
+  }).join("");
+
+  $("resultStatus").innerHTML='<span class="good">JRA結果を自動認識しました。</span> '+found.filter(x=>x.rank<=15).length+'頭の着順を取得。';
+  $("review").innerHTML=`<div class="comment"><b>予想TOP3</b>：${p.join(" → ")}<br><b>実績TOP3</b>：${actual.join(" → ")}<br><b>TOP3一致</b>：${hit}/3　｜　<b>着順一致</b>：${exactPosition}/3　｜　<b>完全一致</b>：${exact?"○":"×"}</div>`+
+    `<div class="comment"><b>予想上位10頭の実着順</b><table><tr><th>予想</th><th>馬</th><th>実着順</th></tr>${predRows}</table></div>`;
+}
+
+function review(){parseResult();}
+function clearResult(){$("result").value="";$("review").innerHTML="";$("resultStatus").textContent="結果待ち";}
+function sample(){
+  $("source").value=`枠1白
+1
+[ドナチャージ](https://example.com)
+**28.4**(6番人気)
+406kg(0)
+小川 眞査雄
+清水牧場
+[栗田 徹](https://example.com)(美浦)
+- 父：ウィルテイクチャージ
+- 母：ドナルチア(母の父：Malibu Moon)
+牝2/栗
+55.0kg
+[杉原 誠人](https://example.com)
+枠1白
+2
+[エコロブラン](https://example.com)
+**2.7**(1番人気)
+428kg(0)
+原村 正紀
+社台ファーム
+[中舘 英二](https://example.com)(美浦)
+- 父：ミスチヴィアスアレックス
+- 母：グラッブユアダイヤ(母の父：ゴールドアリュール)
+牝2/黒鹿
+55.0kg
+[津村 明秀](https://example.com)
+枠3赤
+取消
+枠4青
+7
+[マリノエスプレッソ](https://example.com)
+**6.7**(4番人気)
+444kg(+10)
+矢野 雅子
+クラウン日高牧場
+[村田 一誠](https://example.com)(美浦)
+- 父：マテラスカイ
+- 母：マリノエクスプレス(母の父：フリオーソ)
+牝2/栗
+55.0kg
+[田辺 裕信](https://example.com)`;
+  parseJRA();
+}
+function clearAll(){$("source").value="";$("sourceUrl").value="";horses=[];predicted=[];$("preview").classList.add("hidden");$("analysis").classList.add("hidden");$("status").textContent="クリアしました。"}
+if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{});}
+</script>
+</body></html>
